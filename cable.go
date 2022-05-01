@@ -69,22 +69,24 @@ func GetProcessManager() *ProcessManager {
 }
 
 func (p *ProcessManager) AddRunnableProcess(fn RunnableProcess) {
-	defer func() {
-		if err := recover(); err != nil {
-			message := fmt.Errorf("Panic in running process: %s", err)
-			p.logger.Error(message)
+	p.runner.Run(func() {
+		defer func() {
+			if err := recover(); err != nil {
+				message := fmt.Errorf("Panic in running process: %s", err)
+				p.logger.Error(message)
+				p.lock.Lock()
+				p.errors = append(p.errors, message)
+				p.lock.Unlock()
+			}
+		}()
+
+		err := fn(p.cleanCtx)
+		if err != nil {
 			p.lock.Lock()
-			p.errors = append(p.errors, message)
+			p.errors = append(p.errors, err)
 			p.lock.Unlock()
 		}
-	}()
-
-	err := fn(p.cleanCtx)
-	if err != nil {
-		p.lock.Lock()
-		p.errors = append(p.errors, err)
-		p.lock.Unlock()
-	}
+	})
 }
 
 func (p *ProcessManager) AddCleanupProcess(fn CleanupProcess) {
@@ -117,9 +119,11 @@ func (p *ProcessManager) doGracefulShutdown() {
 	p.cleanCtxCancel()
 
 	for _, cleanupProcess := range p.cleanupProcesses {
-		p.runner.Run(func() {
-			p.doCleanupProcess(cleanupProcess)
-		})
+		func(c CleanupProcess) {
+			p.runner.Run(func() {
+				p.doCleanupProcess(c)
+			})
+		}(cleanupProcess)
 	}
 
 	go func() {
