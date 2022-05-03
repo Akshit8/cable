@@ -19,6 +19,7 @@ func main() {
 			default:
 				fmt.Println("Process 1")
 				time.Sleep(time.Second)
+				panic("Panic in process 1")
 			}
 		}
 	})

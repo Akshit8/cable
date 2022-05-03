@@ -2,17 +2,17 @@ package cable
 
 import "sync"
 
-type process struct {
+type processRunner struct {
 	wg sync.WaitGroup
 }
 
-func newProcess() *process {
-	return &process{
+func newProcessRunner() *processRunner {
+	return &processRunner{
 		wg: sync.WaitGroup{},
 	}
 }
 
-func (p *process) Run(fn func()) {
+func (p *processRunner) Run(fn func()) {
 	p.wg.Add(1)
 
 	go func() {
@@ -21,6 +21,6 @@ func (p *process) Run(fn func()) {
 	}()
 }
 
-func (p *process) Wait() {
+func (p *processRunner) Wait() {
 	p.wg.Wait()
 }

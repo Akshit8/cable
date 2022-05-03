@@ -29,7 +29,7 @@ type ProcessManager struct {
 	doneCtx        context.Context
 	doneCtxCancel  context.CancelFunc
 
-	runner *process
+	processRunner *processRunner
 
 	errors           []error
 	cleanupProcesses []CleanupProcess
@@ -40,10 +40,10 @@ func newProcessManager(option ...Option) *ProcessManager {
 		opts := newOptions(option...)
 
 		processManager = &ProcessManager{
-			lock:   &sync.RWMutex{},
-			logger: opts.logger,
-			errors: make([]error, 0),
-			runner: newProcess(),
+			lock:          &sync.RWMutex{},
+			logger:        opts.logger,
+			errors:        make([]error, 0),
+			processRunner: newProcessRunner(),
 		}
 
 		processManager.start(opts.ctx)
@@ -69,7 +69,7 @@ func GetProcessManager() *ProcessManager {
 }
 
 func (p *ProcessManager) AddRunnableProcess(fn RunnableProcess) {
-	p.runner.Run(func() {
+	p.processRunner.Run(func() {
 		defer func() {
 			if err := recover(); err != nil {
 				message := fmt.Errorf("Panic in running process: %s", err)
@@ -120,14 +120,14 @@ func (p *ProcessManager) doGracefulShutdown() {
 
 	for _, cleanupProcess := range p.cleanupProcesses {
 		func(c CleanupProcess) {
-			p.runner.Run(func() {
+			p.processRunner.Run(func() {
 				p.doCleanupProcess(c)
 			})
 		}(cleanupProcess)
 	}
 
 	go func() {
-		p.runner.Wait()
+		p.processRunner.Wait()
 		p.lock.Lock()
 		p.doneCtxCancel()
 		p.lock.Unlock()
@@ -173,7 +173,7 @@ func (p *ProcessManager) start(ctx context.Context) {
 }
 
 func (p *ProcessManager) wait() {
-	p.runner.Wait()
+	p.processRunner.Wait()
 }
 
 func (p *ProcessManager) Done() <-chan struct{} {
