@@ -20,4 +20,11 @@ jobs:
 
       - name: go test
         run: |
-          go test ./...
+          go test -race -coverprofile=coverage.txt -covermode=atomic github.com/Akshit8/cable
+
+      - name: upload coverage
+        uses: codecov/codecov-action@v2
+        with:
+          files: ./coverage.txt
+          flags: cable-unittest
+          fail_ci_if_error: true
