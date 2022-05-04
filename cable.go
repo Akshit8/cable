@@ -29,7 +29,7 @@ type ProcessManager struct {
 	doneCtx        context.Context
 	doneCtxCancel  context.CancelFunc
 
-	runner *process
+	processRunner *processRunner
 
 	errors           []error
 	cleanupProcesses []CleanupProcess
@@ -40,10 +40,10 @@ func newProcessManager(option ...Option) *ProcessManager {
 		opts := newOptions(option...)
 
 		processManager = &ProcessManager{
-			lock:   &sync.RWMutex{},
-			logger: opts.logger,
-			errors: make([]error, 0),
-			runner: newProcess(),
+			lock:          &sync.RWMutex{},
+			logger:        opts.logger,
+			errors:        make([]error, 0),
+			processRunner: newProcessRunner(),
 		}
 
 		processManager.start(opts.ctx)
@@ -69,7 +69,7 @@ func GetProcessManager() *ProcessManager {
 }
 
 func (p *ProcessManager) AddRunnableProcess(fn RunnableProcess) {
-	p.runner.Run(func() {
+	p.processRunner.Run(func() {
 		defer func() {
 			if err := recover(); err != nil {
 				message := fmt.Errorf("Panic in running process: %s", err)
@@ -116,18 +116,21 @@ func (p *ProcessManager) doCleanupProcess(fn CleanupProcess) {
 }
 
 func (p *ProcessManager) doGracefulShutdown() {
+	p.lock.RLock()
+	defer p.lock.RUnlock()
+
 	p.cleanCtxCancel()
 
 	for _, cleanupProcess := range p.cleanupProcesses {
 		func(c CleanupProcess) {
-			p.runner.Run(func() {
+			p.processRunner.Run(func() {
 				p.doCleanupProcess(c)
 			})
 		}(cleanupProcess)
 	}
 
 	go func() {
-		p.runner.Wait()
+		p.wait()
 		p.lock.Lock()
 		p.doneCtxCancel()
 		p.lock.Unlock()
@@ -161,6 +164,8 @@ func (p *ProcessManager) handleInterruptSignals(ctx context.Context) {
 			}
 		case <-ctx.Done():
 			p.logger.Infof("Received context done signal(%s) for process: %d. Terminating process...", ctx.Err(), pid)
+			p.doGracefulShutdown()
+			return
 		}
 	}
 }
@@ -173,7 +178,7 @@ func (p *ProcessManager) start(ctx context.Context) {
 }
 
 func (p *ProcessManager) wait() {
-	p.runner.Wait()
+	p.processRunner.Wait()
 }
 
 func (p *ProcessManager) Done() <-chan struct{} {
@@ -182,4 +187,15 @@ func (p *ProcessManager) Done() <-chan struct{} {
 
 func (p *ProcessManager) CleanupCtx() context.Context {
 	return p.cleanCtx
+}
+
+func (p *ProcessManager) GetErrors() []error {
+	var errors []error
+
+	p.lock.RLock()
+	defer p.lock.RUnlock()
+
+	errors = append(errors, p.errors...)
+
+	return errors
 }
