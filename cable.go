@@ -117,7 +117,6 @@ func (p *ProcessManager) doCleanupProcess(fn CleanupProcess) {
 
 func (p *ProcessManager) doGracefulShutdown() {
 	p.lock.RLock()
-	defer p.lock.RUnlock()
 
 	p.cleanCtxCancel()
 
