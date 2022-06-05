@@ -52,10 +52,13 @@ func newProcessManager(option ...Option) *ProcessManager {
 	return processManager
 }
 
+// NewProcessManager creates a new ProcessManager instance.
+// This instance is used to manage the lifecycle of the processes.
 func NewProcessManager(option ...Option) *ProcessManager {
 	return newProcessManager(option...)
 }
 
+// NewProcessManagerWithContext creates a new ProcessManager instance with the given context.
 func NewProcessManagerWithContext(ctx context.Context, option ...Option) *ProcessManager {
 	return newProcessManager(append(option, WithContext(ctx))...)
 }
@@ -68,11 +71,12 @@ func GetProcessManager() *ProcessManager {
 	return processManager
 }
 
+// AddProcess adds a process to the ProcessManager.
 func (p *ProcessManager) AddRunnableProcess(fn RunnableProcess) {
 	p.processRunner.Run(func() {
 		defer func() {
 			if err := recover(); err != nil {
-				message := fmt.Errorf("Panic in running process: %s", err)
+				message := fmt.Errorf("panic in running process: %s", err)
 				p.logger.Error(message)
 				p.lock.Lock()
 				p.errors = append(p.errors, message)
@@ -89,6 +93,8 @@ func (p *ProcessManager) AddRunnableProcess(fn RunnableProcess) {
 	})
 }
 
+// AddCleanupProcess adds a cleanup process to the ProcessManager.
+// this process will be executed when the program is terminated.
 func (p *ProcessManager) AddCleanupProcess(fn CleanupProcess) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
@@ -99,7 +105,7 @@ func (p *ProcessManager) AddCleanupProcess(fn CleanupProcess) {
 func (p *ProcessManager) doCleanupProcess(fn CleanupProcess) {
 	defer func() {
 		if err := recover(); err != nil {
-			message := fmt.Errorf("Panic in cleanup process: %s", err)
+			message := fmt.Errorf("panic in cleanup process: %s", err)
 			p.logger.Error(message)
 			p.lock.Lock()
 			p.errors = append(p.errors, message)
